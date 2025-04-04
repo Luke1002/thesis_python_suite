@@ -161,11 +161,9 @@ def bc_optimized_player_input_data_gatherer(env_path, episode_id):
             pygame.event.pump()
             if joystick:
                 x_axis = joystick.get_axis(0)
-                print(x_axis)
                 if np.abs(x_axis) < 0.1:
                     x_axis = 0
                 z_axis = - joystick.get_axis(1)
-                print(z_axis)
                 if np.abs(z_axis) < 0.1:
                     z_axis = 0
                 joystick_actions = np.array([x_axis, z_axis])
@@ -181,47 +179,6 @@ def bc_optimized_player_input_data_gatherer(env_path, episode_id):
     print(f"Episode {episode_id + 1} finished in {end - start} seconds")
     env.close()
     return episode_data[1:]
-
-
-def bc_optimized_dataset_gatherer(dataset_name, model_path, env_path, num_episodes, no_graphics, manual_controls):
-    start = time.time()
-    print(os.path.dirname(os.path.abspath(__file__)))
-    if not (os.path.exists(model_path) and model_path.endswith(".onnx")):
-        print("Model not found at path: ", model_path)
-        return 1
-    if not (os.path.exists(env_path) and env_path.endswith(".exe")):
-        print("Executable not found at path: ", env_path)
-        return 2
-    print("Dataset started")
-    save_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets")
-    os.makedirs(save_directory, exist_ok=True)
-    filename = f"bc_{dataset_name}_"
-    if manual_controls:
-        filename = "manual_" + filename
-    else:
-        filename = "model_" + filename
-    dataset_path = os.path.join(save_directory, filename)
-    total_episodes = []
-    for i in range(num_episodes):
-        episode_data = np.empty(0)
-        if manual_controls:
-            episode_data = bc_optimized_player_input_data_gatherer(dataset_path, i)
-        else:
-            episode_data = bc_optimized_trained_model_data_gatherer(model_path, env_path, i, no_graphics)
-        total_episodes.append(episode_data)
-        if i in [49, 99, 249, 499, 999, 1999]:
-            dataset_path = os.path.join(save_directory, filename + f"{i + 1}.h5")
-            with h5py.File(dataset_path, "w") as file:
-                for j in range(len(total_episodes)):
-                    file.create_dataset(f"{j}", data=total_episodes[j])
-
-    dataset_path = os.path.join(save_directory, filename + f"{num_episodes}.h5")
-    with h5py.File(dataset_path, "w") as file:
-        for j in range(len(total_episodes)):
-            file.create_dataset(f"{j}", data=total_episodes[j])
-    end = time.time()
-    print("Optimized Dataset saved successfully in {:.2f} seconds".format(end - start))
-
 
 def complete_dataset_gatherer(dataset_name, model_path, env_path, num_episodes, no_graphics, manual_controls,
                               bc_optimized):
