@@ -50,12 +50,10 @@ def trained_model_data_gatherer(model_path, env_path, episode_id, no_graphics):
     end = time.time()
     print(f"Episode {episode_id + 1} finished in {end - start} seconds")
     env.close()
-    return episode_id, episode_data
+    return episode_data
 
 
 def player_input_data_gatherer(env_path, episode_id):
-    print("Loading model")
-
     env = gym.make('PelletFinder-v0', env_path=env_path, no_graphics=False, worker_id=episode_id, seed=int(time.time()))
 
     d_episode = np.dtype([
@@ -66,13 +64,19 @@ def player_input_data_gatherer(env_path, episode_id):
         ('next_state', 'f4', (1, 6))
     ])
 
+    episode_data = np.empty(0, dtype=d_episode)
     start = time.time()
     print(f"Episode {episode_id + 1} started")
-    episode_data = np.empty(0, dtype=d_episode)
     state, _ = env.reset()
     next_actions = np.zeros((1, 2), dtype=float)
     reward = 0.0
     last_step = np.array((state, reward, next_actions, False, np.zeros((1, 6))), dtype=d_episode)
+    pygame.init()
+    if pygame.joystick.get_count() > 0:
+        joystick = pygame.joystick.Joystick(0)
+        joystick.init()
+    else:
+        joystick = None
     has_ended = False
     while not has_ended:
         state, reward, _, done, _ = env.step(next_actions)
@@ -85,6 +89,19 @@ def player_input_data_gatherer(env_path, episode_id):
             z_minus = 1.0 if keyboard.is_pressed('down') else 0.0
             z_plus = 1.0 if keyboard.is_pressed('up') else 0.0
             next_actions = np.array([x_plus - x_minus, z_plus - z_minus])
+            pygame.event.pump()
+            if joystick:
+                x_axis = joystick.get_axis(0)
+                if np.abs(x_axis) < 0.1:
+                    x_axis = 0
+                z_axis = - joystick.get_axis(1)
+                if np.abs(z_axis) < 0.1:
+                    z_axis = 0
+                joystick_actions = np.array([x_axis, z_axis])
+                if np.linalg.norm(joystick_actions) > np.linalg.norm(next_actions):
+                    next_actions = joystick_actions
+            norm = np.linalg.norm(next_actions)
+            next_actions = next_actions / norm if norm > 0 else next_actions
             last_step = np.array((state, reward, next_actions, done, np.zeros(state.shape)), dtype=d_episode)
         else:
             has_ended = True
@@ -94,7 +111,7 @@ def player_input_data_gatherer(env_path, episode_id):
     end = time.time()
     print(f"Episode {episode_id + 1} finished in {end - start} seconds")
     env.close()
-    return episode_id, episode_data
+    return episode_data
 
 
 def bc_optimized_trained_model_data_gatherer(model_path, env_path, episode_id, no_graphics):
@@ -132,6 +149,7 @@ def bc_optimized_player_input_data_gatherer(env_path, episode_id):
     env = gym.make('PelletFinder-v0', env_path=env_path, no_graphics=False, worker_id=episode_id, seed=int(time.time()))
 
     bc_data = np.dtype([('state', np.float32, (1, 6)), ('action', np.float32, (1, 2))])
+
     episode_data = np.empty(0, dtype=bc_data)
     start = time.time()
     print(f"Episode {episode_id + 1} started")
